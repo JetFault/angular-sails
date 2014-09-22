@@ -27,10 +27,11 @@ angular.module('ngSails').provider('$sails', function () {
 
                 return deferred;
             },
-            resolveOrReject = this.responseHandler || function (deferred, data) {
+            resolveOrReject = this.responseHandler || function (deferred, data, jwr) {
+                jwr.error = data.error;
                 // Make sure what is passed is an object that has a status that is a number and if that status is no 2xx, reject.
-                if (data && angular.isObject(data) && data.status && !isNaN(data.status) && Math.floor(data.status / 100) !== 2) {
-                    deferred.reject(data);
+                if (jwr && angular.isObject(jwr) && jwr.statusCode && !isNaN(jwr.statusCode) && Math.floor(jwr.statusCode / 100) !== 2) {
+                    deferred.reject(jwr);
                 } else {
                     deferred.resolve(data);
                 }
@@ -49,8 +50,8 @@ angular.module('ngSails').provider('$sails', function () {
                         data = null;
                     }
                     deferred.promise.then(cb);
-                    socket['legacy_' + methodName](url, data, function (result) {
-                        resolveOrReject(deferred, result);
+                    socket['legacy_' + methodName](url, data, function (result, jwr) {
+                        resolveOrReject(deferred, result, jwr);
                     });
                     return deferred.promise;
                 };
