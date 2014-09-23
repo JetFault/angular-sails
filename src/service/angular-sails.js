@@ -9,7 +9,7 @@ angular.module('ngSails').provider('$sails', function () {
     this.interceptors = [];
     this.responseHandler = undefined;
 
-    this.$get = ['$q', '$timeout', function ($q, $timeout) {
+    this.$get = ['$q', '$timeout', '$injector', function ($q, $timeout, $injector) {
         var socket = io.connect(provider.url),
             defer = function () {
                 var deferred = $q.defer(),
@@ -27,7 +27,7 @@ angular.module('ngSails').provider('$sails', function () {
 
                 return deferred;
             },
-            resolveOrReject = this.responseHandler || function (deferred, data, jwr) {
+            resolveOrReject = $injector.invoke(this.responseHandler) || function (deferred, data, jwr) {
                 jwr.error = data.error;
                 // Make sure what is passed is an object that has a status that is a number and if that status is no 2xx, reject.
                 if (jwr && angular.isObject(jwr) && jwr.statusCode && !isNaN(jwr.statusCode) && Math.floor(jwr.statusCode / 100) !== 2) {
