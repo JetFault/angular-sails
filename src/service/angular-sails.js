@@ -53,7 +53,7 @@ angular.module('ngSails').provider('$sails', function () {
                     }
                     deferred.promise.then(cb);
 
-                    if (!data._csrf) {
+                    if (data && !data._csrf) {
                       data._csrf = this._csrf;
                     }
 
