@@ -13,6 +13,8 @@ angular.module('ngSails').provider('$sails', function () {
     this.interceptors = [];
     this.responseHandler = undefined;
 
+    this._csrf = undefined;
+
     this.$get = ['$q', '$timeout', '$injector', function ($q, $timeout, $injector) {
         var socket = io.connect(provider.url),
             defer = function () {
@@ -54,6 +56,9 @@ angular.module('ngSails').provider('$sails', function () {
                         data = null;
                     }
                     deferred.promise.then(cb);
+
+                    data._csrf = this._csrf;
+
                     socket['legacy_' + methodName](url, data, function (result, jwr) {
                         resolveOrReject(deferred, result, jwr);
                     });
