@@ -60,7 +60,7 @@ angular.module('ngSails').provider('$sails', function () {
                     if (['put', 'post', 'patch', 'delete'].indexOf(methodName) !== -1) {
                       data = data || {};
                       if (!data._csrf) {
-                        data._csrf = this._csrf;
+                        data._csrf = provider._csrf;
                       }
                     }
 
