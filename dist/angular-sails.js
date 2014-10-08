@@ -57,7 +57,9 @@ angular.module('ngSails').provider('$sails', function () {
                     }
                     deferred.promise.then(cb);
 
-                    data._csrf = this._csrf;
+                    if (!data._csrf) {
+                      data._csrf = this._csrf;
+                    }
 
                     socket['legacy_' + methodName](url, data, function (result, jwr) {
                         resolveOrReject(deferred, result, jwr);
