@@ -6,13 +6,15 @@ angular.module('ngSails').provider('$sails', function () {
         eventNames = ['on', 'once'];
 
     this.url = undefined;
+    this.socketOptions = undefined;
+
     this.interceptors = [];
     this.responseHandler = undefined;
 
     this._csrf = undefined;
 
     this.$get = ['$q', '$timeout', '$injector', function ($q, $timeout, $injector) {
-        var socket = io.connect(provider.url),
+        var socket = io.connect(provider.url, provider.socketOptions),
             defer = function () {
                 var deferred = $q.defer(),
                     promise = deferred.promise;
