@@ -15,7 +15,7 @@ angular.module('ngSails').provider('$sails', function () {
     this.interceptors = [];
     this.responseHandler = undefined;
 
-    this._csrf = undefined;
+    this._token = undefined;
 
     this.$get = ['$q', '$timeout', '$injector', function ($q, $timeout, $injector) {
         var socket = io.connect(provider.url, provider.socketOptions),
@@ -61,8 +61,8 @@ angular.module('ngSails').provider('$sails', function () {
                     
                     if (['put', 'post', 'patch', 'delete'].indexOf(methodName) !== -1) {
                       data = data || {};
-                      if (!data._csrf) {
-                        data._csrf = provider._csrf;
+                      if (!data._token) {
+                        data._token = provider._token;
                       }
                     }
 
