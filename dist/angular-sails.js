@@ -215,10 +215,10 @@ angular.module('ngSails').provider('$sails', function () {
         }
 
         //Inject transformations
-        angular.forEach(provider.transformRequest, function(trans) {
+        angular.forEach(transformRequest, function(trans) {
             trans = $injector.invoke(trans);
         });
-        angular.forEach(provider.transformResponse, function(trans) {
+        angular.forEach(transformResponse, function(trans) {
             trans = $injector.invoke(trans);
         });
 
