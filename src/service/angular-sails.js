@@ -108,7 +108,7 @@ angular.module('ngSails').provider('$sails', function () {
             connectDefer = $q.defer();
 
         if (provider.autoConnect) {
-          connectRawSocket();
+            connectRawSocket();
         }
 
         function connectRawSocket() {
@@ -117,11 +117,11 @@ angular.module('ngSails').provider('$sails', function () {
         }
 
         function disconnectRawSocket() {
-          socket.rawSocket.disconnect();
+            socket.rawSocket.disconnect();
 
-          // Reset rawSocket, re-init new connection Defer
-          socket.rawSocket = null;
-          connectDefer = $q.defer();
+            // Reset rawSocket, re-init new connection Defer
+            socket.rawSocket = null;
+            connectDefer = $q.defer();
         }
 
         resolveOrReject = function (data, jwr) {
@@ -138,12 +138,17 @@ angular.module('ngSails').provider('$sails', function () {
 
         // Overwrite default resolve or rejector
         if (provider.rejectOrResolveHandler) {
-          resolveOrReject = $injector.invoke(this.rejectOrResolveHandler);
+            resolveOrReject = $injector.invoke(this.rejectOrResolveHandler);
         }
 
         function methodFunctions(methodName) {
             var socket = this;
             socket[methodName] = function (url, data, headers) {
+                // Must call `$sails.connect` before actually calling any methods
+                if (!socket.rawSocket) {
+                  return $q.reject(new SocketNotConnectedException());
+                }
+
                 if (['put', 'post', 'patch', 'delete'].indexOf(methodName) !== -1) {
                     data = data || {};
                 }
@@ -191,6 +196,7 @@ angular.module('ngSails').provider('$sails', function () {
         function eventFunctions(eventName) {
             var socket = this;
             socket[eventName] = function (event, cb) {
+                // Add the events 'after' the socket connects
                 connectDefer.promise
                 .then(function() {
                     if (cb !== null && angular.isFunction(cb)) {
@@ -224,5 +230,12 @@ angular.module('ngSails').provider('$sails', function () {
         };
 
         return socket;
+
+        function SocketNotConnectedException() {
+          this.name = 'SocketNotConnectedException';
+          this.message = 'Socket has not been connected before attempting to run a socket request';
+        }
+        SocketNotConnectedException.prototype = new Error();
+
     }];
 });
