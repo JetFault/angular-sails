@@ -103,9 +103,9 @@ angular.module('ngSails').provider('$sails', function () {
     };
 
     this.$get = ['$q', '$timeout', '$injector', function ($q, $timeout, $injector) {
-        var socket,
-            resolveOrReject,
-            connectDefer = $q.defer();
+        var socket = {},
+            connectDefer = $q.defer(),
+            resolveOrReject;
 
         if (provider.autoConnect) {
             connectRawSocket();
