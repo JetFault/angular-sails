@@ -10,12 +10,49 @@ angular.module('ngSails').provider('$sails', function () {
         eventNames = ['on', 'once'];
 
     var transformRequest = [],
-      transformResponse = [];
+        transformResponse = [];
 
+    /**
+     * 'host:port' string to connect to
+     */
     this.socketHostPort = undefined;
+
+    /**
+     * socket options to send to `io.connect`
+     */
     this.socketOptions = undefined;
 
-    this.responseHandler = undefined;
+    /**
+     * Should the socket autoconnect on first injection
+     */
+    this.autoConnect = io.sails.autoConnect;
+
+    /**
+     * Response Handler (first thing run after getting a server response)
+     * Figures out whether to reject or resolve the promise based on the statusCode
+     *
+     * Should return a value if successful or `$q.reject` on rejection
+     *
+     * arguments will be:
+     * @param {JSON} result result of socket call
+     * @param {JSON} jwt Entire JWT response from server
+     *
+     * @example (also default implementation)
+     *  ```
+     *    $sailsProvider.resolveOrRejectHandler = ['', function() {
+     *      return function (data, jwr) {
+     *        var resp = { data: data, jwr: jwr };
+     *
+     *        // Make sure what is passed is an object that has a status that is a number and if that status is no 2xx, reject.
+     *        if (jwr && angular.isObject(jwr) && jwr.statusCode && !isNaN(jwr.statusCode) && Math.floor(jwr.statusCode / 100) !== 2) {
+     *          return $q.reject(resp);
+     *        } else {
+     *          return resp;
+     *        }
+     *      };
+     *    }];
+     */
+    this.resolveOrRejectHandler = undefined;
 
     /**
      * Add a Request Transform function, injectable
@@ -23,6 +60,7 @@ angular.module('ngSails').provider('$sails', function () {
      * Also, accepts returning a promise
      *
      * arguments will be:
+     * @param {JSON} config
      *  {
      *    data,
      *    method,
@@ -30,7 +68,7 @@ angular.module('ngSails').provider('$sails', function () {
      *    headers
      *  }
      *
-     * example:
+     * @example:
      *  ```
      *    $sailsProvider.addRequestTransform(['$rootScope', function($rootScope) {
      *      return function(config) {
@@ -69,76 +107,106 @@ angular.module('ngSails').provider('$sails', function () {
     };
 
     this.$get = ['$q', '$timeout', '$injector', function ($q, $timeout, $injector) {
-        var socket = io.connect(provider.socketHostPort, provider.socketOptions),
-            resolveOrReject = this.responseHandler ? $injector.invoke(this.responseHandler) : function (deferred, data, jwr) {
-                var resp = { data: data, jwr: jwr };
+        var socket,
+            resolveOrReject,
+            connectDefer = $q.defer();
 
-                //jwr.error = data.error;
-                // Make sure what is passed is an object that has a status that is a number and if that status is no 2xx, reject.
-                if (jwr && angular.isObject(jwr) &&
-                    jwr.statusCode && !isNaN(jwr.statusCode) &&
-                    Math.floor(jwr.statusCode / 100) !== 2)
-                {
-                      deferred.reject(resp);
-                } else {
-                    deferred.resolve(resp);
+        if (provider.autoConnect) {
+          connectRawSocket();
+        }
+
+        function connectRawSocket() {
+            socket.rawSocket = io.connect(provider.socketHostPort, provider.socketOptions);
+            connectDefer.resolve(socket);
+        }
+
+        function disconnectRawSocket() {
+          socket.rawSocket.disconnect();
+
+          // Reset rawSocket, re-init new connection Defer
+          socket.rawSocket = null;
+          connectDefer = $q.defer();
+        }
+
+        resolveOrReject = function (data, jwr) {
+            var resp = { data: data, jwr: jwr };
+
+            //jwr.error = data.error;
+            // Make sure what is passed is an object that has a status that is a number and if that status is no 2xx, reject.
+            if (jwr && angular.isObject(jwr) && jwr.statusCode && !isNaN(jwr.statusCode) && Math.floor(jwr.statusCode / 100) !== 2) {
+                return $q.reject(resp);
+            } else {
+                return resp;
+            }
+        };
+
+        // Overwrite default resolve or rejector
+        if (provider.rejectOrResolveHandler) {
+          resolveOrReject = $injector.invoke(this.rejectOrResolveHandler);
+        }
+
+        function methodFunctions(methodName) {
+            var socket = this;
+            socket[methodName] = function (url, data, headers) {
+                if (['put', 'post', 'patch', 'delete'].indexOf(methodName) !== -1) {
+                    data = data || {};
                 }
-            },
-            angularify = function (cb, data) {
-                $timeout(function () {
-                    cb(data);
+
+                var config = {
+                    data: data,
+                    method: methodName,
+                    url: url,
+                    headers: headers
+                };
+
+                var serverRequest = function(config) {
+                    var deferred = $q.defer();
+                    socket.rawSocket[config.method](config.url, config.data, function (result, jwr) {
+                        $q.when(resolveOrReject(result, jwr))
+                        .then(function(res) {
+                            deferred.resolve(res);
+                        })
+                        .catch(function(err) {
+                            deferred.reject(err);
+                        });
+                    });
+                    return deferred.promise;
+                };
+
+                // Handle Request and Response Transforms
+                var chain = [serverRequest],
+                    promise = $q.when(config);
+
+                angular.forEach(provider.transformRequest, function (trans) {
+                    chain.unshift(trans);
                 });
-            },
-            promisify = function (methodName) {
-                socket['legacy_' + methodName] = socket[methodName];
-                socket[methodName] = function (url, data, headers) {
-                    if (['put', 'post', 'patch', 'delete'].indexOf(methodName) !== -1) {
-                        data = data || {};
-                    }
+                angular.forEach(provider.transformResponse, function (trans) {
+                    chain.push(trans);
+                });
 
-                    var config = {
-                        data: data,
-                        method: methodName,
-                        url: url,
-                        headers: headers
-                    };
+                while (chain.length) {
+                    promise = promise.then(chain.shift());
+                }
 
-                    var serverRequest = function(config) {
-                        var deferred = $q.defer();
-                        socket['legacy_' + config.method](config.url, config.data, function (result, jwr) {
-                            resolveOrReject(deferred, result, jwr);
-                        });
-                        return deferred.promise;
-                    };
-
-                    // Handle Request and Response Transforms
-                    var chain = [serverRequest],
-                        promise = $q.when(config);
-
-                    angular.forEach(provider.transformRequest, function (trans) {
-                        chain.unshift(trans);
-                    });
-                    angular.forEach(provider.transformResponse, function (trans) {
-                        chain.push(trans);
-                    });
-
-                    while (chain.length) {
-                        promise = promise.then(chain.shift());
-                    }
-
-                    return promise;
-                };
-            },
-            wrapEvent = function (eventName) {
-                socket['legacy_' + eventName] = socket[eventName];
-                socket[eventName] = function (event, cb) {
-                    if (cb !== null && angular.isFunction(cb)) {
-                        socket['legacy_' + eventName](event, function (result) {
-                            angularify(cb, result);
-                        });
-                    }
-                };
+                return promise;
             };
+        }
+
+        function eventFunctions(eventName) {
+            var socket = this;
+            socket[eventName] = function (event, cb) {
+                connectDefer.promise
+                .then(function() {
+                    if (cb !== null && angular.isFunction(cb)) {
+                        socket.rawSocket[eventName](event, function (result) {
+                            $timeout(function () {
+                                cb(result);
+                            });
+                        });
+                    }
+                });
+            };
+        }
 
         //Inject transformations
         angular.forEach(provider.transformRequest, function(trans) {
@@ -148,8 +216,16 @@ angular.module('ngSails').provider('$sails', function () {
             trans = $injector.invoke(trans);
         });
 
-        angular.forEach(httpVerbs, promisify);
-        angular.forEach(eventNames, wrapEvent);
+        angular.forEach(httpVerbs, methodFunctions.bind(socket));
+        angular.forEach(eventNames, eventFunctions.bind(socket));
+
+        socket.connect = function() {
+          connectRawSocket();
+        };
+
+        socket.disconnect = function() {
+          disconnectRawSocket();
+        };
 
         return socket;
     }];
