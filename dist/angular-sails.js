@@ -230,8 +230,8 @@ angular.module('ngSails').provider('$sails', function () {
         angular.forEach(httpVerbs, methodFunctions.bind(socket));
         angular.forEach(eventNames, eventFunctions.bind(socket));
 
-        socket.connect = function() {
-          connectRawSocket();
+        socket.connect = function(options) {
+          connectRawSocket(options);
         };
 
         socket.disconnect = function() {
