@@ -116,12 +116,17 @@ angular.module('ngSails').provider('$sails', function () {
         }
 
         function connectRawSocket() {
-            socket.rawSocket = io.connect(provider.socketHostPort, provider.socketOptions);
-            connectDefer.resolve(socket);
+            // Only connect once if a socket already exists
+            if (!socket.rawSocket) {
+              socket.rawSocket = io.connect(provider.socketHostPort, provider.socketOptions);
+              connectDefer.resolve(socket);
+            }
         }
 
         function disconnectRawSocket() {
-            socket.rawSocket.disconnect();
+            if (socket.rawSocket) {
+              socket.rawSocket.disconnect();
+            }
 
             // Reset rawSocket, re-init new connection Defer
             socket.rawSocket = null;
