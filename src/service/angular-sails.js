@@ -130,15 +130,26 @@ angular.module('ngSails').provider('$sails', function () {
         }
 
         resolveOrReject = function (data, jwr) {
-            var resp = { data: data, jwr: jwr };
+            // angular $http returns the 'body' as 'data'.
+            jwr.data = jwr.body;
+
+            // angular $http returns the 'statusCode' as 'status'.
+            jwr.status = jwr.statusCode;
+
+            if (jwr.error) {
+              $q.reject(jwr);
+            } else {
+              $q.reject(jwr);
+            }
+            //var resp = { data: data, jwr: jwr };
 
             //jwr.error = data.error;
             // Make sure what is passed is an object that has a status that is a number and if that status is no 2xx, reject.
-            if (jwr && angular.isObject(jwr) && jwr.statusCode && !isNaN(jwr.statusCode) && Math.floor(jwr.statusCode / 100) !== 2) {
-                return $q.reject(resp);
-            } else {
-                return resp;
-            }
+            //if (jwr && angular.isObject(jwr) && jwr.statusCode && !isNaN(jwr.statusCode) && Math.floor(jwr.statusCode / 100) !== 2) {
+                //return $q.reject(resp);
+            //} else {
+                //return resp;
+            //}
         };
 
         // Overwrite default resolve or rejector
@@ -183,10 +194,10 @@ angular.module('ngSails').provider('$sails', function () {
                 var chain = [serverRequest],
                     promise = $q.when(config);
 
-                angular.forEach(provider.transformRequest, function (trans) {
+                angular.forEach(transformRequest, function (trans) {
                     chain.unshift(trans);
                 });
-                angular.forEach(provider.transformResponse, function (trans) {
+                angular.forEach(transformResponse, function (trans) {
                     chain.push(trans);
                 });
 
